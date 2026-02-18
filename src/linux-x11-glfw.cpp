@@ -7,7 +7,8 @@
 #include <X11/Xos.h>
 #include "GLFW/glfw3.h"
 #include "imgui.h"
-
+#include <thread>
+#include <atomic>
 #include "imgui_internal.h" // so we can get the viewport associated with an ImGui window
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
@@ -25,8 +26,9 @@ struct GLFWContext
     imgui_clap_editor *_editor = nullptr;
     GLFWwindow *_windowHandle = nullptr;
     const clap_host *_clap_host = nullptr;
-    clap_id timer_id = 0;
+    std::thread thread;
     bool valid = false;
+    std::atomic_bool _shouldRunTimer = false;
     // clap_plugin_timer_support gui__timer_support;
     GLFWContext(imgui_clap_editor *e, clap_xwnd win, const clap_host *host)
         : _editor(e), _clap_host(host)
@@ -45,8 +47,6 @@ struct GLFWContext
 
         deleteTimer();
 
-        ImGui::DestroyContext();
-
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
 
@@ -62,24 +62,81 @@ struct GLFWContext
 
         unsigned int ms = TIMER_MS;
 
-        clap_host_timer_support *timer_support =
-            (clap_host_timer_support *)_clap_host->get_extension(_clap_host,
-                                                                 CLAP_EXT_TIMER_SUPPORT);
-        return timer_support && timer_support->register_timer(_clap_host, ms, &timer_id);
+        // clap_host_timer_support *timer_support =
+        //     (clap_host_timer_support *)_clap_host->get_extension(_clap_host,
+        //                                                          CLAP_EXT_TIMER_SUPPORT);
+        // return timer_support && timer_support->register_timer(_clap_host, ms, &timer_id);
+        _shouldRunTimer = true;
+        thread = std::thread(
+            [&]()
+            {
+                while ((!glfwWindowShouldClose(_windowHandle)) && _shouldRunTimer)
+                {
+                    render();
+                }
+            });
+        thread.detach();
+        return true;
     }
-
-  private:
-    void onTimer() {}
     void deleteTimer()
     {
 
-        clap_host_timer_support *timer_support =
-            (clap_host_timer_support *)_clap_host->get_extension(_clap_host,
-                                                                 CLAP_EXT_TIMER_SUPPORT);
-        if (timer_support)
-            timer_support->unregister_timer(_clap_host, timer_id);
-        timer_id = 0;
+        //  clap_host_timer_support *timer_support =
+        //      (clap_host_timer_support *)_clap_host->get_extension(_clap_host,
+        //                                                           CLAP_EXT_TIMER_SUPPORT);
+        //  if (timer_support)
+        //      timer_support->unregister_timer(_clap_host, timer_id);
+        //  timer_id = 0;
+        _shouldRunTimer = false;
+        if (thread.joinable())
+        {
+            thread.join();
+        }
     }
+
+  private:
+    void render()
+    {
+        // Main loop
+        if (!_windowHandle)
+            return;
+        // Poll and handle events (inputs, window resize, etc.)
+        // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear
+        // imgui wants to use your inputs.
+        // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main
+        // application, or clear/overwrite your copy of the mouse data.
+        // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your
+        // main application, or clear/overwrite your copy of the keyboard data. Generally you
+        // may always pass all inputs to dear imgui, and hide them from your application based
+        // on those two flags.
+        // glfwPollEvents();
+
+        glfwWaitEventsTimeout(TIMER_MS);
+
+        // Start the Dear ImGui frame
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        // draw the editor
+        _editor->onRender();
+
+        ImGui::End();
+
+        ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+        // Rendering
+        ImGui::Render();
+        int display_w, display_h;
+        glfwGetFramebufferSize(_windowHandle, &display_w, &display_h);
+        glViewport(0, 0, display_w, display_h);
+        glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w,
+                     clear_color.z * clear_color.w, clear_color.w);
+        glClear(GL_COLOR_BUFFER_BIT);
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+        glfwSwapBuffers(_windowHandle);
+    }
+
     bool _initialize(imgui_clap_editor *e, clap_xwnd win)
     {
 
