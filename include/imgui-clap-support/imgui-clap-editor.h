@@ -19,12 +19,9 @@ struct imgui_clap_editor
     void *ctx{nullptr};
 };
 
-bool imgui_clap_guiCreateWith(imgui_clap_editor *,
-                              const clap_host_timer_support_t *);
-void imgui_clap_guiDestroyWith(imgui_clap_editor *,
-                               const clap_host_timer_support_t *);
-bool imgui_clap_guiSetParentWith(imgui_clap_editor *,
-                                 const clap_window *);
+bool imgui_clap_guiCreateWith(imgui_clap_editor *, const clap_host *);
+void imgui_clap_guiDestroyWith(imgui_clap_editor *, const clap_host *);
+bool imgui_clap_guiSetParentWith(imgui_clap_editor *, const clap_window *, const clap_host *);
 bool imgui_clap_guiSetSizeWith(imgui_clap_editor *, int width, int height);
 
 #endif // CLAP_SAW_DEMO_IMGUI_IMGUI_CLAP_EDITOR_H
